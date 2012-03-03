@@ -151,7 +151,10 @@ function LatexErrorAnalyzer() {
 	function pathMayExist(path) {
 		return (TW.fileExists(path) != 1);
 	}
-	
+
+	// Returns an array on success, undefined on failure.
+	// The first array element is the matched string, the second is the
+	// (absolute) file path
 	obj.matchNewFile = function(line)
 	{
 		// Note: upon entering this function, the parameter line is truncated so
@@ -208,9 +211,13 @@ function LatexErrorAnalyzer() {
 						return undefined;
 				}
 				else if (match[0] == ' ' || match[0] == '"' || match[0] == ')') {
-					if ((!quoted || match[0] == '"') && pathMayExist(filepath)) {
+					if (pathMayExist(filepath)) {
+						matchedStr = (isAbsolutePath ? filepath : filepath.substr(this.rootPath.length + 1))
 						// We found a file that (possibly) exists, so we're done
-						return [prefix + filepath + match[0], filepath];
+						if (quoted && match[0] == '"')
+							return [prefix + matchedStr + match[0], filepath];
+						else if (!quoted && match[0] != '"')
+							return [prefix + matchedStr, filepath];
 					}
 					filepath += match[0];
 				}
@@ -219,8 +226,10 @@ function LatexErrorAnalyzer() {
 			// of the filename
 			filepath += line;
 			if (!quoted && pathMayExist(filepath)) {
-				return [prefix + filepath, filepath];
+				matchedStr = (isAbsolutePath ? filepath : filepath.substr(this.rootPath.length + 1))
+				return [prefix + matchedStr, filepath];
 			}
+
 			lineIdx++;
 			if (lineIdx < this.lines.length)
 				line = this.lines[lineIdx];
@@ -250,7 +259,7 @@ function LatexErrorAnalyzer() {
 				if (match) {
 					this.filenames.push(this.curFile);
 					this.curFile = match[1];
-					line = line.slice(match[0].length);
+					line = line.substr(match[0].length);
 					this.extraParens = 0;
 				}
 				else {
@@ -288,15 +297,15 @@ function LatexErrorAnalyzer() {
 		html = html.replace(/  /g, "&nbsp;&nbsp;");
 		html = html.replace(/&nbsp; /g, "&nbsp;&nbsp;");
 		return html.replace(/\n/g, "<br />\n");
-
 	}
 
-	function makeResultRow(data, color) {
+	obj.makeResultRow = function(data, color) {
 		var html = '';
 		var url = 'texworks:' + data[0] + (data[1] != '?' && data[1] != 0 ? '#' + data[1] : '');
+		displayPath = (startsWith(data[0], this.rootPath + '/') ? data[0].substr(this.rootPath.length + 1) : data[0]);
 		html += '<tr>';
 		html += '<td width="10" style="background-color: ' + color + '"></td>';
-		html += '<td valign="top"><a href="' + url + '">' + data[0] + '</a></td>';
+		html += '<td valign="top"><a href="' + url + '">' + displayPath + '</a></td>';
 		html += '<td valign="top">' + data[1] + '</td>';
 		html += '<td valign="top" style="font-family: monospace;">' + htmlize(data[2]) + '</td>';
 		html += '</tr>';
@@ -333,11 +342,11 @@ function LatexErrorAnalyzer() {
 			html += '<table border="1" cellspacing="0" cellpadding="4">';
 
 			for(i = 0; i < this.errors.length; ++i)
-				html += makeResultRow(this.errors[i], 'red');
+				html += this.makeResultRow(this.errors[i], 'red');
 			for(i = 0; i < this.warnings.length; ++i)
-				html += makeResultRow(this.warnings[i], 'yellow');
+				html += this.makeResultRow(this.warnings[i], 'yellow');
 			for(i = 0; i < this.infos.length; ++i)
-				html += makeResultRow(this.infos[i], '#8080ff');
+				html += this.makeResultRow(this.infos[i], '#8080ff');
 
 			html += "</table>";
 			html += "</body></html>";
